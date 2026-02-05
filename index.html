@@ -34,6 +34,7 @@
     <script src="https://unpkg.com/recharts@1.8.5/umd/Recharts.min.js"></script>
 
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
 
@@ -442,12 +443,106 @@
             );
         };
 
+        // NEW: Policy Network Graph Component (Premium Aesthetics)
+        const PolicyNetworkGraph = ({ data, regionName }) => {
+            const containerRef = useRef(null);
+            const networkRef = useRef(null);
+
+            useEffect(() => {
+                if (!data || !containerRef.current) return;
+
+                const { nodes, edges } = data;
+
+                const visNodes = new vis.DataSet(nodes.map(n => ({
+                    ...n,
+                    color: {
+                        background: '#ffffff',
+                        border: '#1e3a8a',
+                        highlight: { background: '#f59e0b', border: '#1e3a8a' },
+                        hover: { background: '#eff6ff', border: '#1e3a8a' }
+                    },
+                    font: { face: 'Sarabun', size: 14, color: '#1e3a8a' },
+                    shadow: { enabled: true, color: 'rgba(0,0,0,0.05)', size: 10, x: 5, y: 5 }
+                })));
+
+                const visEdges = new vis.DataSet(edges.map(e => ({
+                    ...e,
+                    color: { color: '#cbd5e1', highlight: '#f59e0b', hover: '#94a3b8' },
+                    smooth: { type: 'continuous', roundness: 0.5 },
+                    width: Math.sqrt(e.value) * 2, // Scaled thickness
+                    opacity: 0.6
+                })));
+
+                const options = {
+                    nodes: { shape: 'dot', scaling: { min: 10, max: 40 } },
+                    edges: { arrows: { to: { enabled: false } } },
+                    physics: {
+                        barnesHut: { gravitationalConstant: -3000, centralGravity: 0.3, springLength: 150 },
+                        stabilization: { iterations: 100 }
+                    },
+                    interaction: { hover: true, tooltipDelay: 200, hideEdgesOnDrag: true },
+                    height: '500px'
+                };
+
+                networkRef.current = new vis.Network(containerRef.current, { nodes: visNodes, edges: visEdges }, options);
+
+                return () => { if (networkRef.current) networkRef.current.destroy(); };
+            }, [data]);
+
+            if (!data || !data.nodes || data.nodes.length === 0) {
+                return (
+                    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-8">
+                        <p className="text-center text-gray-400 py-20">📊 กำลังประมวลผลข้อมูลความสัมพันธ์...</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 gold-underline">วิเคราะห์ความสัมพันธ์ (Node Analysis) : {regionName}</h3>
+                                <p className="text-xs text-gray-400">เส้นเชื่อมแสดงปัญหาที่มักถูกเลือกคู่กัน (ยิ่งหนา = ยิ่งสัมพันธ์กันสูง)</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div ref={containerRef} className="w-full bg-slate-50 rounded-2xl border border-gray-100" style={{ height: '500px' }}></div>
+
+                    {/* Simplified Insight Section */}
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                            <h4 className="text-sm font-bold text-primary mb-2 flex items-center gap-2">
+                                <IconInfo /> 💡 วิธีการอ่านกราฟ
+                            </h4>
+                            <ul className="text-xs text-slate-600 space-y-2">
+                                <li>• <b>ขนาดของวงกลม:</b> แสดงถึงจำนวนผู้ที่เลือกนโยบายนั้นๆ</li>
+                                <li>• <b>ความหนาของเส้น:</b> แสดงถึงความบ่อยที่นโยบายทั้งสองถูกเลือกคู่กัน</li>
+                                <li>• <b>การจัดกลุ่ม:</b> นโยบายที่อยู่ใกล้กันมักจะเป็นปัญหาที่คนห่วงใยร่วมกัน</li>
+                            </ul>
+                        </div>
+                        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                            <h4 className="text-sm font-bold text-amber-700 mb-2 flex items-center gap-2">
+                                <IconMessageCircle size={16} /> ✨ ข้อค้นพบที่น่าสนใจ
+                            </h4>
+                            <p className="text-xs text-amber-800 leading-relaxed">
+                                กราฟนี้ช่วยให้นักนโยบายเห็น "Core Cluster" หรือกลุ่มปัญหาที่เป็นรากฐานเดียวกัน เช่น หากเส้นระหว่าง <b>รายได้</b> และ <b>หนี้สิน</b> หนามาก แสดงว่าการแก้ปัญหาเศรษฐกิจต้องทำควบคู่กันทั้งสองมิติ
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const processCSVData = (results) => {
             // ... Same logic as before ...
             // (Skipping implementation body for brevity as logic is unchanged, just focus on UI)
             // In real file, keep the logic!
             const data = results.data;
-            if (!data || data.length === 0) return { heatmap: {}, stats: {}, flow: {} };
+            if (!data || data.length === 0) return { heatmap: {}, stats: {}, flow: {}, comments: {}, network: {} };
 
             // Re-implementing simplified version to make code runnable in this snippet
             const heatmapData = {}; const statsData = {}; const flowData = {}; const commentsData = {};
@@ -513,7 +608,52 @@
                 return { province: r, policies };
             });
 
-            return { heatmap: formattedHeatmap, stats: formattedStats, flow: flowData, comments: commentsData };
+            // NEW: Calculate Co-occurrence Matrix for Network Graph
+            const networkData = {};
+            Object.keys(flowData).forEach(r => {
+                const nodesMap = new Map();
+                const edgesMap = new Map();
+
+                flowData[r].forEach(row => {
+                    const selected = [row["Policy Rank 1"], row["Policy Rank 2"], row["Policy Rank 3"]].filter(p => p && allPolicies.includes(p));
+
+                    // Count Nodes
+                    selected.forEach(p => {
+                        nodesMap.set(p, (nodesMap.get(p) || 0) + 1);
+                    });
+
+                    // Count Edges (Pairs)
+                    for (let i = 0; i < selected.length; i++) {
+                        for (let j = i + 1; j < selected.length; j++) {
+                            const pair = [selected[i], selected[j]].sort().join('|');
+                            edgesMap.set(pair, (edgesMap.get(pair) || 0) + 1);
+                        }
+                    }
+                });
+
+                // Format for vis-network
+                const nodes = Array.from(nodesMap.entries()).map(([name, val]) => ({
+                    id: name,
+                    label: POLICY_SHORT_NAMES[name] || name,
+                    value: val, // Size based on popularity
+                    title: `${name}: ${val} votes`
+                }));
+
+                const edges = Array.from(edgesMap.entries())
+                    .filter(([_, count]) => count >= 1) // Show all connections for now
+                    .map(([pair, count]) => {
+                        const [from, to] = pair.split('|');
+                        return {
+                            from, to,
+                            value: count, // Thickness based on relationship strength
+                            title: `ความเชื่อมโยง: ${count} ครั้ง`
+                        };
+                    });
+
+                networkData[r] = { nodes, edges };
+            });
+
+            return { heatmap: formattedHeatmap, stats: formattedStats, flow: flowData, comments: commentsData, network: networkData };
         };
 
         const FileUploader = ({ onDataLoaded }) => {
@@ -523,8 +663,8 @@
                 Papa.parse(file, {
                     header: true, skipEmptyLines: true,
                     complete: (results) => {
-                        const { heatmap, stats, flow, comments } = processCSVData(results);
-                        onDataLoaded(heatmap, stats, flow, comments);
+                        const { heatmap, stats, flow, comments, network } = processCSVData(results);
+                        onDataLoaded(heatmap, stats, flow, comments, network);
                     }
                 });
             };
@@ -551,7 +691,16 @@
             const [activeRegion, setActiveRegion] = useState("National");
             const [showMethodology, setShowMethodology] = useState(false);
             const [radarData, setRadarData] = useState([]);
-            const [dashboardData, setDashboardData] = useState({ heatmap: MOCK_HEATMAP_DATA, stats: MOCK_STATS_DATA, flow: MOCK_FLOW_DATA, comments: { "National": MOCK_COMMENTS_DATA } });
+            const [dashboardData, setDashboardData] = useState({
+                heatmap: MOCK_HEATMAP_DATA,
+                stats: MOCK_STATS_DATA,
+                flow: MOCK_FLOW_DATA,
+                comments: { "National": MOCK_COMMENTS_DATA },
+                network: {}
+            });
+
+            // For Debugging
+            useEffect(() => { window.dashboardData = dashboardData; }, [dashboardData]);
             const [isCustomData, setIsCustomData] = useState(false);
             const [isAdmin, setIsAdmin] = useState(false);
 
@@ -563,18 +712,29 @@
                     Papa.parse(RAW_CSV_DATA, {
                         header: true, skipEmptyLines: true,
                         complete: (results) => {
-                            const { heatmap, stats, flow, comments } = processCSVData(results);
-                            handleDataLoaded(heatmap, stats, flow, comments);
+                            const { heatmap, stats, flow, comments, network } = processCSVData(results);
+                            handleDataLoaded(heatmap, stats, flow, comments, network);
                             setIsCustomData(true);
                         }
                     });
+                } else {
+                    // Initialize with Mock Data for Network Graph
+                    // Convert MOCK_FLOW_DATA into a format processCSVData can handle
+                    const mockRows = [];
+                    Object.keys(MOCK_FLOW_DATA).forEach(region => {
+                        MOCK_FLOW_DATA[region].forEach(f => {
+                            mockRows.push({ ...f, Region: region, Province: "Mock" });
+                        });
+                    });
+                    const { network } = processCSVData({ data: mockRows });
+                    setDashboardData(prev => ({ ...prev, network }));
                 }
             }, []);
 
             useEffect(() => { setRadarData(generateRadarData(activeRegion)); }, [activeRegion]);
 
-            const handleDataLoaded = (newHeatmap, newStats, newFlow, newComments) => {
-                setDashboardData({ heatmap: newHeatmap, stats: newStats, flow: newFlow, comments: newComments });
+            const handleDataLoaded = (newHeatmap, newStats, newFlow, newComments, newNetwork) => {
+                setDashboardData({ heatmap: newHeatmap, stats: newStats, flow: newFlow, comments: newComments, network: newNetwork });
                 setIsCustomData(true);
                 setActiveRegion("National");
             };
@@ -762,6 +922,11 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Node Analysis Graph */}
+                        <div className="fade-in" key={`network-${activeRegion}`}>
+                            <PolicyNetworkGraph data={dashboardData.network && dashboardData.network[activeRegion]} regionName={activeRegion === "National" ? "ภาพรวมประเทศ" : activeRegion} />
                         </div>
 
                         {/* Heatmap */}
